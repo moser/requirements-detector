@@ -11,7 +11,7 @@ from requirements_detector.requirement import DetectedRequirement, _parse_egg_na
 
 class TestRequirementParsing(TestCase):
 
-    def _test(self, requirement, name=None, version_specs=None, url=None):
+    def _test(self, requirement, name=None, version_specs=None, url=None, extras=None):
         req = DetectedRequirement.parse(requirement)
         self.assertEqual(name, req.name)
         if version_specs is None:
@@ -20,6 +20,9 @@ class TestRequirementParsing(TestCase):
             for spec in version_specs:
                 self.assertTrue(spec in req.version_specs)
         self.assertEqual(url, req.url)
+        if extras is not None:
+            self.assertEqual(set(extras), set(req.extras))
+
 
     def test_basic_requirement(self):
         self._test('Django', 'django')
@@ -72,6 +75,10 @@ class TestRequirementParsing(TestCase):
             url='http://example.com/somelib.tar.gz'
         )
 
+    def test_extras(self):
+        self._test('tablib[xml, html]', 'tablib', extras=['xml', 'html'])
+        self._test('tablib[xml, html] ~= 1.0', 'tablib', [('~=', '1.0')], extras=['xml', 'html'])
+
 
 class TestEggFragmentParsing(TestCase):
 
@@ -97,3 +104,37 @@ class TestFragmentStripping(TestCase):
         url = 'http://example.com/index.html?a=b&c=2#some_fragment'
         parts = urlparse.urlparse(url)
         self.assertEqual('http://example.com/index.html?a=b&c=2', _strip_fragment(parts))
+
+
+class TestRequirementFormating(TestCase):
+
+    def _test(self, requirement, formatted):
+        req = DetectedRequirement.parse(requirement)
+        self.assertEqual(formatted, req.pip_format())
+
+    def test_simple_formatting(self):
+        self._test('Django', 'django')
+
+    def test_versioned_formatting(self):
+        self._test('Django > 1.0', 'django>1.0')
+        self._test('django-gubbins!=1.1.1,>1.1', 'django-gubbins!=1.1.1,>1.1')
+
+    def test_relative_file_path(self):
+        self._test('../somelib', '../somelib')
+
+    def test_vcs_url(self):
+        self._test('git+ssh://git@github.com/something/somelib.git',
+                   'git+ssh://git@github.com/something/somelib.git')
+        self._test('git+ssh://git@github.com/something/somelib.git#egg=somelib',
+                   'git+ssh://git@github.com/something/somelib.git#egg=somelib')
+        self._test('git://github.com/peeb/django-mollie-ideal.git#egg=mollie',
+                   'git+git://github.com/peeb/django-mollie-ideal.git#egg=mollie')
+
+    def test_archive_url(self):
+        self._test('http://example.com/somelib.tar.gz', 'http://example.com/somelib.tar.gz')
+        self._test('http://example.com/somelib.tar.gz#egg=somelib',
+                   'http://example.com/somelib.tar.gz#egg=somelib')
+
+    def test_extras(self):
+        self._test('tablib[xml, html]', 'tablib[html,xml]')
+        self._test('tablib[xml, html] ~= 1.0', 'tablib[html,xml]~=1.0')

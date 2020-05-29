@@ -67,8 +67,14 @@ class DetectedRequirement(object):
 
     def _format_specs(self):
         return ",".join(
-            ["%s%s" % (comp, version) for comp, version in self.version_specs]
+            ["%s%s" % (comp, version) for comp, version in sorted(self.version_specs)]
         )
+
+    @property
+    def extras(self):
+        if self.requirement:
+            return self.requirement.extras
+        return ()
 
     def pip_format(self):
         if self.url:
@@ -77,7 +83,11 @@ class DetectedRequirement(object):
             return self.url
         if self.name:
             if self.version_specs:
+                if self.extras:
+                    return "%s[%s]%s" % (self.name, ",".join(self.extras), self._format_specs())
                 return "%s%s" % (self.name, self._format_specs())
+            if self.extras:
+                return "%s[%s]" % (self.name, ",".join(self.extras))
             return self.name
 
     def __str__(self):
